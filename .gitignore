@@ -1,0 +1,49 @@
+# Unity generated folders
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Visual Studio / MonoDevelop generated files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.pidb.meta
+
+# Unity auto-generated meta files
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+
+# Crash reports
+sysinfo.txt
+
+# Asset meta data should only be ignored when the corresponding asset is also ignored
+!*.meta
+
+# Uncomment if you have the Visual Studio Code plugin
+.vscode/
+
