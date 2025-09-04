@@ -24,6 +24,7 @@ public class FactoryReplay : MonoBehaviour
     public GameObject agentPrefab;    // Sphere o tu agente
     public GameObject boxPrefab;      // Cube o tu caja
     public GameObject dropZonePrefab; // Plane o marcador
+    public GameObject agentPrefabCarrying; // (opcional) agente con caja
 
     [Header("Animación")]
     public float cellSize = 1.0f;   // tamaño de celda
@@ -129,7 +130,7 @@ public class FactoryReplay : MonoBehaviour
             GameObject go = agentPrefab != null ? Instantiate(agentPrefab)
                                                 : GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.transform.position = ToWorld(a.x, a.y);
-            go.transform.localScale = Vector3.one * (cellSize * 0.5f);
+            go.transform.localScale = Vector3.one * (cellSize * 0.15f);
             go.name = $"Agent_{a.id}";
             agentGOs[a.id] = go;
         }
@@ -139,7 +140,7 @@ public class FactoryReplay : MonoBehaviour
             GameObject go = boxPrefab != null ? Instantiate(boxPrefab)
                                               : GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.transform.position = ToWorld(b.x, b.y);
-            go.transform.localScale = Vector3.one * (cellSize * 0.8f);
+            go.transform.localScale = Vector3.one * (cellSize * 0.2f);
             go.name = $"Box_{b.id}";
             boxGOs[b.id] = go;
         }
@@ -179,21 +180,51 @@ public class FactoryReplay : MonoBehaviour
                 }
 
                 // Actualizar/crear agentes
+                // Actualizar/crear agentes
                 foreach (var a in fr.agents)
                 {
                     if (!agentGOs.ContainsKey(a.id))
                     {
+                        // Crear como vacío al inicio
                         GameObject go = agentPrefab != null ? Instantiate(agentPrefab)
-                                                            : GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                                                                : GameObject.CreatePrimitive(PrimitiveType.Sphere);
                         go.transform.localScale = Vector3.one * (cellSize * 0.5f);
                         go.name = $"Agent_{a.id}";
                         agentGOs[a.id] = go;
                     }
-                    MoveGO(agentGOs[a.id], ToWorld(a.x, a.y));
 
-                    // (Opcional) Cambiar tamaño/indicador si va cargando
-                    // agentGOs[a.id].transform.localScale = Vector3.one * (cellSize * (a.carrying ? 1.0f : 0.8f));
+                    GameObject currentGO = agentGOs[a.id];
+
+                    // ---- CARRYING CHECK ----
+                    bool isCarrying = a.carrying;
+                    bool prefabMismatch =
+                        (isCarrying && currentGO.name.Contains("(Empty)")) ||
+                        (!isCarrying && currentGO.name.Contains("(Carrying)"));
+
+                    if (prefabMismatch)
+                    {
+                        // Save transform info before swap
+                        Vector3 pos = currentGO.transform.position;
+                        Quaternion rot = currentGO.transform.rotation;
+                        Destroy(currentGO);
+
+                        GameObject newGO = isCarrying
+                            ? Instantiate(agentPrefabCarrying)
+                            : Instantiate(agentPrefab);
+
+                        newGO.transform.position = pos;
+                        newGO.transform.rotation = rot;
+                        newGO.transform.localScale = Vector3.one * (cellSize * 0.5f);
+                        newGO.name = $"Agent_{a.id}" + (isCarrying ? "(Carrying)" : "(Empty)");
+
+                        agentGOs[a.id] = newGO;
+                        currentGO = newGO;
+                    }
+
+                    // ---- MOVE ----
+                    MoveGO(currentGO, ToWorld(a.x, a.y));
                 }
+
 
                 yield return new WaitForSeconds(stepTime);
             }
@@ -213,18 +244,37 @@ public class FactoryReplay : MonoBehaviour
         }
     }
 
-    IEnumerator TweenMove(GameObject go, Vector3 target, float dur)
+   IEnumerator TweenMove(GameObject go, Vector3 target, float dur)
+{
+    Vector3 start = go.transform.position;
+    Quaternion startRot = go.transform.rotation;
+
+    Vector3 dir = (target - start).normalized;
+    Quaternion targetRot = dir.sqrMagnitude > 0.001f 
+        ? Quaternion.LookRotation(dir, Vector3.up) 
+        : startRot;
+
+    float t = 0f;
+    while (t < 1f)
     {
-        Vector3 start = go.transform.position;
-        float t = 0f;
-        while (t < 1f)
-        {
-            t += Time.deltaTime / Mathf.Max(dur, 0.0001f);
-            go.transform.position = Vector3.Lerp(start, target, Mathf.Clamp01(t));
-            yield return null;
-        }
-        go.transform.position = target;
+        t += Time.deltaTime / Mathf.Max(dur, 0.0001f);
+
+        // Easing in/out with SmoothStep
+        float easedT = Mathf.SmoothStep(0f, 1f, t);
+
+        // Position
+        go.transform.position = Vector3.Lerp(start, target, easedT);
+
+        // Rotation
+        go.transform.rotation = Quaternion.Slerp(startRot, targetRot, easedT);
+
+        yield return null;
     }
+
+    go.transform.position = target;
+    go.transform.rotation = targetRot;
+}
+
 
     Vector3 ToWorld(int gx, int gy)
     {
