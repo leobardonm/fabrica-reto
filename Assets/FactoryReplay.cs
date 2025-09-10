@@ -40,6 +40,9 @@ public class FactoryReplay : MonoBehaviour
 
     IEnumerator Start()
     {
+        stepTime = FindObjectOfType<WorldInfo>().step_time;
+        loop = FindObjectOfType<WorldInfo>().loop;
+        
         yield return LoadReplayAsync();
         if (replay == null || replay.frames == null || replay.frames.Count == 0)
         {
@@ -121,19 +124,27 @@ public class FactoryReplay : MonoBehaviour
             dropGO.name = "DropZone";
             dropGO.transform.localScale = Vector3.one * (cellSize * 0.95f);
         }
-
+        
         // Frame 0: crear agentes/cajas
         var f0 = replay.frames[0];
 
+        // In BuildScene(), when creating agents for frame 0
         foreach (var a in f0.agents)
         {
-            GameObject go = agentPrefab != null ? Instantiate(agentPrefab)
-                                                : GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bool isCarrying = a.carrying;
+
+            GameObject go = isCarrying
+                ? (agentPrefabCarrying != null ? Instantiate(agentPrefabCarrying)
+                                            : GameObject.CreatePrimitive(PrimitiveType.Sphere))
+                : (agentPrefab != null ? Instantiate(agentPrefab)
+                                    : GameObject.CreatePrimitive(PrimitiveType.Sphere));
+
             go.transform.position = ToWorld(a.x, a.y);
             go.transform.localScale = Vector3.one * (cellSize * 0.15f);
-            go.name = $"Agent_{a.id}";
+            go.name = $"Agent_{a.id}" + (isCarrying ? "(Carrying)" : "(Empty)");
             agentGOs[a.id] = go;
         }
+
 
         foreach (var b in f0.boxes)
         {
@@ -146,7 +157,7 @@ public class FactoryReplay : MonoBehaviour
         }
     }
 
-    IEnumerator Play()
+    public IEnumerator Play()
     {
         do
         {
@@ -163,7 +174,7 @@ public class FactoryReplay : MonoBehaviour
                     {
                         GameObject go = boxPrefab != null ? Instantiate(boxPrefab)
                                                           : GameObject.CreatePrimitive(PrimitiveType.Cube);
-                        go.transform.localScale = Vector3.one * (cellSize * 0.8f);
+                        go.transform.localScale = Vector3.one * (cellSize * 0.2f);
                         go.name = $"Box_{b.id}";
                         boxGOs[b.id] = go;
                     }
@@ -208,14 +219,16 @@ public class FactoryReplay : MonoBehaviour
                         Quaternion rot = currentGO.transform.rotation;
                         Destroy(currentGO);
 
+                        // Inside the prefab swap code (Play() loop)
                         GameObject newGO = isCarrying
-                            ? Instantiate(agentPrefabCarrying)
-                            : Instantiate(agentPrefab);
+                            ? Instantiate(agentPrefabCarrying != null ? agentPrefabCarrying : GameObject.CreatePrimitive(PrimitiveType.Sphere))
+                            : Instantiate(agentPrefab != null ? agentPrefab : GameObject.CreatePrimitive(PrimitiveType.Sphere));
 
                         newGO.transform.position = pos;
                         newGO.transform.rotation = rot;
-                        newGO.transform.localScale = Vector3.one * (cellSize * 0.5f);
+                        newGO.transform.localScale = Vector3.one * (cellSize * 0.15f);  // <<--- force scale every time
                         newGO.name = $"Agent_{a.id}" + (isCarrying ? "(Carrying)" : "(Empty)");
+
 
                         agentGOs[a.id] = newGO;
                         currentGO = newGO;
@@ -250,8 +263,8 @@ public class FactoryReplay : MonoBehaviour
     Quaternion startRot = go.transform.rotation;
 
     Vector3 dir = (target - start).normalized;
-    Quaternion targetRot = dir.sqrMagnitude > 0.001f 
-        ? Quaternion.LookRotation(dir, Vector3.up) 
+    Quaternion targetRot = dir.sqrMagnitude > 0.001f
+        ? Quaternion.LookRotation(dir, Vector3.up)
         : startRot;
 
     float t = 0f;
@@ -259,14 +272,14 @@ public class FactoryReplay : MonoBehaviour
     {
         t += Time.deltaTime / Mathf.Max(dur, 0.0001f);
 
-        // Easing in/out with SmoothStep
         float easedT = Mathf.SmoothStep(0f, 1f, t);
 
-        // Position
+        // Position moves over full step time
         go.transform.position = Vector3.Lerp(start, target, easedT);
 
-        // Rotation
-        go.transform.rotation = Quaternion.Slerp(startRot, targetRot, easedT);
+        // Rotation finishes in quarter time
+        float rotT = Mathf.Clamp01(t * 3f); // 3x faster
+        go.transform.rotation = Quaternion.Slerp(startRot, targetRot, rotT);
 
         yield return null;
     }
@@ -274,6 +287,7 @@ public class FactoryReplay : MonoBehaviour
     go.transform.position = target;
     go.transform.rotation = targetRot;
 }
+
 
 
     Vector3 ToWorld(int gx, int gy)

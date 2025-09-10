@@ -4,7 +4,7 @@ using UnityEditor;
 
 
 
-namespace UnityFactorySceneHDRP
+namespace UnityWarehouseSceneHDRP
 {
 	[CustomEditor(typeof(CameraMove))]
 	public class CameraMoveEditor : Editor
