@@ -11,6 +11,11 @@ public class MainMenu : MonoBehaviour
     public Slider stepTimeSlider;
     public Toggle loopToggle;
 
+    public void Update()
+    {
+        if (Input.GetKey(KeyCode.S)) SceneManager.LoadScene("SampleScene");
+    }
+
     public void PlayGame()
     {
         SceneManager.LoadScene("SampleScene");
